@@ -1,0 +1,177 @@
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+
+#pragma once
+
+#include <iostream>
+#include <WinSock2.h>
+
+#include <vector>
+#include <map>
+#include <string>
+
+#include <memory>
+
+#pragma comment(lib, "ws2_32")
+
+#define BUFFER_SIZE 1024
+
+class Server
+{
+private:
+	class BufferData
+	{
+	public:
+		BufferData()
+			: m_Buffer(new char[BUFFER_SIZE])
+			, m_BufferSize(0)
+		{
+		}
+
+		BufferData(const BufferData& _Other)
+		{
+			memcpy(m_Buffer, _Other.m_Buffer, BUFFER_SIZE);
+			m_BufferSize = _Other.m_BufferSize;
+		}
+
+		~BufferData()
+		{
+			delete[] m_Buffer;
+		}
+
+	private:
+		char* m_Buffer;
+		int m_BufferSize;
+
+	public:
+		template<typename T>
+		void SetBufferData(const T& _Data)
+		{
+			int DataSize = sizeof(_Data);
+			memcpy(&m_Buffer[m_BufferSize], &DataSize, sizeof(int));
+			m_BufferSize += sizeof(int);
+
+			memcpy(&m_Buffer[m_BufferSize], &_Data, sizeof(_Data));
+			m_BufferSize += sizeof(_Data);
+		}
+
+		template<>
+		void SetBufferData(const std::string& _Data)
+		{
+			int DataSize = (int)_Data.size() + 1;
+			memcpy(&m_Buffer[m_BufferSize], &DataSize, sizeof(int));
+			m_BufferSize += sizeof(int);
+
+			memcpy(&m_Buffer[m_BufferSize], _Data.c_str(), DataSize);
+			m_BufferSize += DataSize;
+		}
+
+		template <typename T>
+		void GetBufferData(T& _Data)
+		{
+			int DataSize;
+			memcpy(&DataSize, &m_Buffer[m_BufferSize], sizeof(int));
+			m_BufferSize += sizeof(int);
+
+			memcpy(&_Data, &m_Buffer[m_BufferSize], DataSize);
+			m_BufferSize += DataSize;
+		}
+
+		template <>
+		void GetBufferData(std::string& _Data)
+		{
+			int DataSize;
+			memcpy(&DataSize, &m_Buffer[m_BufferSize], sizeof(int));
+			m_BufferSize += sizeof(int);
+
+			char Buf[BUFFER_SIZE];
+			memcpy(&Buf, &m_Buffer[m_BufferSize], DataSize);
+			m_BufferSize += DataSize;
+
+			_Data = Buf;
+		}
+
+	public:
+		int GetSize()
+		{
+			return m_BufferSize;
+		}
+
+	public:
+		operator char* ()
+		{
+			return m_Buffer;
+		}
+
+		operator const char* ()
+		{
+			return m_Buffer;
+		}
+	};
+
+private:
+	enum class ENUM_NAME_COLOR
+	{
+		RED,
+		BLUE,
+		YELLOW,
+		END
+	};
+
+	enum class ENUM_PACKET_TYPE
+	{
+		CHAT,
+		SEND_USERNAME,
+		ROOM_ENTER_MY_INFO,
+		ROOM_ENTER_OTHER_INFO,
+		ROOM_ENTER_ALL_INFO,
+		ROOM_EXIT
+	};
+
+private:
+	struct UserInfo
+	{
+		int Index;
+		std::string Name;
+		std::string IPAdress;
+		ENUM_NAME_COLOR NameColor;
+
+		bool operator==(const UserInfo& _Info)
+		{
+			return Name == _Info.Name && IPAdress == _Info.IPAdress && NameColor == _Info.NameColor;
+		}
+	};
+
+public:
+	Server(int _Port);
+	~Server();
+
+private:
+	SOCKET m_ListenerSocket;
+	int m_Port;
+	int m_ClientCount;
+
+private:
+	std::vector<SOCKET> m_Sockets;
+	std::vector<WSAEVENT> m_Events;
+	std::vector<UserInfo> m_AllUserInfo;
+
+public:
+	void Start();
+	void Listen();
+
+private:
+	void End();
+
+private:
+	void AcceptPacket(int _EventIndex);
+	void ReadPacket(int _EventIndex);
+	void ClosePacket(int _EventIndex);
+
+private:
+	void SendPacket(const SOCKET& _Socket, const ENUM_PACKET_TYPE _Type, int _ClinetIndex, const std::string& _Message = "");
+	void SendPacketAll(const ENUM_PACKET_TYPE _Type, int _ClinetIndex, const std::string& _Message = "", SOCKET* _ExceptSocket = nullptr);
+
+private:
+	std::string GetColorStr(ENUM_NAME_COLOR _Color);
+	std::string PacketName(const ENUM_PACKET_TYPE _Type);
+};
