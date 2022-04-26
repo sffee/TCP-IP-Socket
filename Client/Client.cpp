@@ -48,8 +48,8 @@ void Client::Chat()
 
 	while (true)
 	{
-		std::string Str;
-		std::cin >> Str;
+		char Str[512];
+		std::cin.getline(Str, 512);
 
 		if (Str == "Exit" || Str == "exit")
 		{
